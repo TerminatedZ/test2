@@ -665,7 +665,7 @@ task.spawn(function()
 						way=way+vel*dt
 
 						local newPos=v3(basePos.X+dir.X*way,targetY,basePos.Z+dir.Z*way)
-						hrp.CFrame=cf(newPos,toP)*off
+						hrp.CFrame=cf(newPos,toP)
 						hrp.Velocity=dir*(vel+1)
 						hrp.RotVelocity=v3_0
 
@@ -673,7 +673,7 @@ task.spawn(function()
 					end
 
 					-- Snap back to torso when idle
-					hrp.CFrame=cf(v3(hrp1.Position.X,hrp1.Position.Y,hrp1.Position.Z))*off
+					hrp.CFrame=cf(hrp1.Position)
 					hrp.Velocity=v3_0
 					hrp.RotVelocity=v3_0
 				end
@@ -685,75 +685,57 @@ task.spawn(function()
 	end
 end)
 
--- ── JUMP ASSIST (fixed) ──
--- When the target jumps, we launch upward from beneath their feet, flicking up
--- to stay just below them through the arc using bring/speed-style lying-flat CFrame.
-local jumpActive=false
+-- JUMP ASSIST (flick version)
+local lastJumpTime = 0
 
 task.spawn(function()
 	while true do
 		twait()
-		if not jumpEnabled or not target or bringing then
-			jumpActive=false
-			continue
-		end
+
+		if not jumpEnabled or not target or bringing then continue end
 
 		local c=lp.Character
 		local c1=target and target.Character
 		if not (c and c1) then continue end
 		if not (c:IsDescendantOf(ws) and c1:IsDescendantOf(ws)) then continue end
+
 		local hrp=gp(c,"HumanoidRootPart","BasePart")
 		local hrp1=gp(c1,"HumanoidRootPart","BasePart")
 		if not (hrp and hrp1) then continue end
 
-		-- Detect jump: target moving upward
-		if not jumpActive and hrp1.Velocity.Y > 1 then
-			jumpActive=true
-			task.spawn(function()
-				local peakReached=false
-				while jumpEnabled and target and not bringing do
-					local ch=lp.Character
-					local ch1=target and target.Character
-					if not (ch and ch1) then break end
-					local r=gp(ch,"HumanoidRootPart","BasePart")
-					local r1=gp(ch1,"HumanoidRootPart","BasePart")
-					if not (r and r1) then break end
+		-- detect jump (rising fast + debounce)
+		if hrp1.Velocity.Y > 2 and osclock() - lastJumpTime > 0.25 then
+			lastJumpTime = osclock()
 
-					-- Position: just below their FEET (bottom of their HRP),
-					-- lying flat with the off rotation like bring/speed assist does.
-					-- Their feet = r1.Position.Y - r1.Size.Y/2
-					local feetY = r1.Position.Y - r1.Size.Y/2
+			local vel = hrp1.Velocity
+			local horiz = v3(vel.X,0,vel.Z)
 
-					-- Look direction: flat horizontal toward where they're moving,
-					-- or just forward if standing still (off handles the tilt)
-					local hv=v3(r1.Velocity.X,0,r1.Velocity.Z)
-					local lookTarget
-					if hv.Magnitude>0.1 then
-						lookTarget=v3(r1.Position.X,feetY,r1.Position.Z)+hv.Unit*10
-					else
-						lookTarget=v3(r1.Position.X+1,feetY,r1.Position.Z)
-					end
+			-- predict forward if moving
+			local offset = v3_0
+			if horiz.Magnitude > 1 then
+				offset = horiz.Unit * 2.5
+			end
 
-					-- Snap XZ to under their feet, Y to feet level
-					r.CFrame=cf(v3(r1.Position.X, feetY, r1.Position.Z), lookTarget)*off
-					-- Apply scaled jump velocity upward so we keep up through lag
-					r.Velocity=v3(r1.Velocity.X, r1.Velocity.Y*(jumpPower/100), r1.Velocity.Z)
-					r.RotVelocity=v3_0
+			-- feet position
+			local feetY = hrp1.Position.Y - (hrp1.Size.Y/2)
 
-					-- Track peak
-					if r1.Velocity.Y <= 0 then peakReached=true end
+			-- teleport under / slightly ahead
+			local basePos = v3(
+				hrp1.Position.X + offset.X,
+				feetY - (hrp.Size.Y/2) - 0.1,
+				hrp1.Position.Z + offset.Z
+			)
 
-					twait()
+			hrp.CFrame = cf(basePos)
 
-					-- Exit once past peak and clearly descending / landed
-					if peakReached and r1.Velocity.Y < -2 then
-						twait()
-						twait()
-						break
-					end
-				end
-				jumpActive=false
-			end)
+			-- 🔥 THE FLICK
+			hrp.Velocity = v3(
+				vel.X,
+				jumpPower,
+				vel.Z
+			)
+
+			hrp.RotVelocity = v3_0
 		end
 	end
 end)
