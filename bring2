@@ -576,7 +576,6 @@ bringBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ── SPEED ASSIST ──
--- FIX: targets the target's torso (HRP center) instead of footY
 local assisting=false
 
 task.spawn(function()
@@ -598,12 +597,9 @@ task.spawn(function()
 					local horizV=v3(tv.X,0,tv.Z)
 					local walkspeed=horizV.Magnitude
 
-					-- FIX: use target torso Y (HRP center), not foot level
-					local targetY=hrp1.Position.Y
-
 					if walkspeed<=0.5 then
-						-- Target is standing still: snap to their torso position lying flat
-						hrp.CFrame=cf(v3(hrp1.Position.X,targetY,hrp1.Position.Z))*off
+						local footY=hrp1.Position.Y-hrp1.Size.Y/2
+						hrp.CFrame=cf(v3(hrp1.Position.X,footY,hrp1.Position.Z))*off
 						hrp.Velocity=v3_0
 						hrp.RotVelocity=v3_0
 						twait()
@@ -611,6 +607,7 @@ task.spawn(function()
 					end
 
 					local dir=horizV.Unit
+					local footY=hrp1.Position.Y-hrp1.Size.Y/2
 					local vel=0
 					local way=0
 					local reachedmaxspeed=false
@@ -635,13 +632,12 @@ task.spawn(function()
 						end
 
 						dir=newDir
-						-- FIX: track torso Y, not foot Y
-						targetY=hrp1.Position.Y
+						footY=hrp1.Position.Y-hrp1.Size.Y/2
 
-						local basePos=v3(hrp1.Position.X,targetY,hrp1.Position.Z)
+						local basePos=v3(hrp1.Position.X,footY,hrp1.Position.Z)
 						local toP=basePos+dir*50
 
-						local myHorizPos=v3(hrp.Position.X,targetY,hrp.Position.Z)
+						local myHorizPos=v3(hrp.Position.X,footY,hrp.Position.Z)
 						local ahead=(myHorizPos-basePos):Dot(dir)
 						if ahead>30 then
 							vel=0
@@ -650,7 +646,7 @@ task.spawn(function()
 						end
 
 						if reachedmaxspeed then
-							if (basePos-v3(hrp.Position.X,targetY,hrp.Position.Z)).Magnitude<reachedmaxspeed then
+							if (basePos-v3(hrp.Position.X,footY,hrp.Position.Z)).Magnitude<reachedmaxspeed then
 								vel=vel-dt*speeding
 								if vel<0 then break end
 							end
@@ -664,23 +660,16 @@ task.spawn(function()
 
 						way=way+vel*dt
 
-						local newPos = v3(basePos.X + dir.X * way, targetY, basePos.Z + dir.Z * way)
-
-						-- sideways tilt only (roll)
-						local roll = math.rad(45)
-						
-						-- flat orientation that doesn’t face the target
-						local flat = CFrame.new(newPos) * CFrame.Angles(0, 0, roll)
-						
-						hrp.CFrame = flat
-						hrp.Velocity = dir * (vel + 1)
-						hrp.RotVelocity = v3_0
+						local newPos=v3(basePos.X+dir.X*way,footY,basePos.Z+dir.Z*way)
+						hrp.CFrame=cf(newPos,toP)*off
+						hrp.Velocity=dir*(vel+1)
+						hrp.RotVelocity=v3_0
 
 						twait()
 					end
 
-					-- Snap back to torso when idle
-					hrp.CFrame=cf(hrp1.Position)
+					local footYFinal=hrp1.Position.Y-hrp1.Size.Y/2
+					hrp.CFrame=cf(v3(hrp1.Position.X,footYFinal,hrp1.Position.Z))*off
 					hrp.Velocity=v3_0
 					hrp.RotVelocity=v3_0
 				end
