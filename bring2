@@ -664,12 +664,17 @@ task.spawn(function()
 
 						way=way+vel*dt
 
-						local newPos=v3(basePos.X+dir.X*way,targetY,basePos.Z+dir.Z*way)
-						local tilt = -35 * (math.pi / 180)  -- change degree if needed (more negative = more forward)
-						local look = CFrame.lookAt(newPos, toP)
-						hrp.CFrame = look * CFrame.Angles(tilt, 0, 0)
-						hrp.Velocity=dir*(vel+1)
-						hrp.RotVelocity=v3_0
+						local newPos = v3(basePos.X + dir.X * way, targetY, basePos.Z + dir.Z * way)
+
+						-- sideways tilt only (roll)
+						local roll = math.rad(45)
+						
+						-- flat orientation that doesn’t face the target
+						local flat = CFrame.new(newPos) * CFrame.Angles(0, 0, roll)
+						
+						hrp.CFrame = flat
+						hrp.Velocity = dir * (vel + 1)
+						hrp.RotVelocity = v3_0
 
 						twait()
 					end
