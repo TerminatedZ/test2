@@ -665,7 +665,9 @@ task.spawn(function()
 						way=way+vel*dt
 
 						local newPos=v3(basePos.X+dir.X*way,targetY,basePos.Z+dir.Z*way)
-						hrp.CFrame=cf(newPos,toP)
+						local tilt = -35 * (math.pi / 180)  -- change degree if needed (more negative = more forward)
+						local look = CFrame.lookAt(newPos, toP)
+						hrp.CFrame = look * CFrame.Angles(tilt, 0, 0)
 						hrp.Velocity=dir*(vel+1)
 						hrp.RotVelocity=v3_0
 
@@ -779,10 +781,25 @@ task.spawn(function()
 			lookTarget=v3(hrp1.Position.X+1,snapY,hrp1.Position.Z)
 		end
 
-		hrp.CFrame=cf(v3(hrp1.Position.X, snapY, hrp1.Position.Z), lookTarget)*off
+		-- Predict future position so we float smoothly
+		local predictTime = 0.35
+		local predicted = hrp1.Position + hrp1.Velocity * predictTime
+		
+		-- Keep lying flat using the SAME rotation ("off")
+		local flatPos = v3(predicted.X, snapY, predicted.Z)
+		
+		-- Make the facing direction also predictive
+		local predictedLook = flatPos + (
+		    hrp1.Velocity.Magnitude > 0.1 
+		    and hrp1.Velocity.Unit * 10 
+		    or v3(1,0,0)
+		)
+		
+		hrp.CFrame = cf(flatPos, predictedLook) * off
+		
 		-- Inherit target velocity so we don't fall behind
-		hrp.Velocity=hrp1.Velocity
-		hrp.RotVelocity=v3_0
+		hrp.Velocity = hrp1.Velocity
+		hrp.RotVelocity = v3_0
 	end
 end)
 
