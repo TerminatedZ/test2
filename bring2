@@ -182,7 +182,7 @@ end
 
 -- Speed assist checkbox + speed +/-
 local speedRow=mk("Frame",{
-	Position=u2(0,0,1,-204),Size=u2(0,220,0,26),
+	Position=u2(0,0,1,-178),Size=u2(0,220,0,26),
 	BackgroundTransparency=1,BorderSizePixel=0,
 },content)
 local checkbox=mk("TextButton",{
@@ -202,7 +202,7 @@ mk("TextLabel",{
 
 -- Speed power row
 local speedPowerRow=mk("Frame",{
-	Position=u2(0,0,1,-176),Size=u2(0,220,0,18),
+	Position=u2(0,0,1,-150),Size=u2(0,220,0,18),
 	BackgroundTransparency=1,BorderSizePixel=0,
 },content)
 mk("TextLabel",{
@@ -227,26 +227,6 @@ local spPlusBtn=mk("TextButton",{
 	TextSize=13,Font=en.Font.GothamBold,BorderSizePixel=0,
 },speedPowerRow)
 corner(spPlusBtn,4) stroke(spPlusBtn)
-
--- Speed experimental checkbox
-local speedExpRow=mk("Frame",{
-	Position=u2(0,0,1,-154),Size=u2(0,220,0,26),
-	BackgroundTransparency=1,BorderSizePixel=0,
-},content)
-local speedExpCheckbox=mk("TextButton",{
-	Size=u2(0,18,0,18),Position=u2(0,0,0.5,-9),
-	BackgroundColor3=C.surface,Text="",BorderSizePixel=0,
-},speedExpRow)
-corner(speedExpCheckbox,4) stroke(speedExpCheckbox)
-local speedExpCheckmark=mk("TextLabel",{
-	Size=u2(1,0,1,0),BackgroundTransparency=1,
-	Text="✓",TextColor3=C.accent,TextSize=14,Font=en.Font.GothamBold,Visible=false,
-},speedExpCheckbox)
-mk("TextLabel",{
-	Position=u2(0,24,0,0),Size=u2(1,-24,1,0),BackgroundTransparency=1,
-	Text="Speed experimental",TextColor3=C.muted,TextSize=12,Font=en.Font.Gotham,
-	TextXAlignment=en.TextXAlignment.Left,
-},speedExpRow)
 
 -- Jump assist checkbox
 local jumpRow=mk("Frame",{
@@ -338,13 +318,6 @@ local speedPower=75
 local jumpEnabled=false
 local jumpPower=100
 local floatEnabled=false
-local speedExpEnabled=false
-
-speedExpCheckbox.MouseButton1Click:Connect(function()
-	speedExpEnabled=not speedExpEnabled
-	speedExpCheckmark.Visible=speedExpEnabled
-	speedExpCheckbox.BackgroundColor3=speedExpEnabled and C.accentDim or C.surface
-end)
 
 checkbox.MouseButton1Click:Connect(function()
 	speedEnabled=not speedEnabled
@@ -708,8 +681,6 @@ task.spawn(function()
 	end
 end)
 
-
-
 -- JUMP ASSIST (flick version)
 local lastJumpTime = 0
 
@@ -760,34 +731,6 @@ task.spawn(function()
 				vel.Z
 			)
 
-			hrp.RotVelocity = v3_0
-		end
-	end
-end)
-
-
--- ── SPEED EXPERIMENTAL ──
-task.spawn(function()
-	while true do
-		twait()
-		if not speedExpEnabled or not target or bringing then continue end
-
-		local c=lp.Character
-		local c1=target and target.Character
-		if not (c and c1) then continue end
-		if not (c:IsDescendantOf(ws) and c1:IsDescendantOf(ws)) then continue end
-
-		local hrp=gp(c,"HumanoidRootPart","BasePart")
-		local hrp1=gp(c1,"HumanoidRootPart","BasePart")
-		if not (hrp and hrp1) then continue end
-
-		-- just point and flick toward target, no teleport ever
-		local toTarget = (hrp1.Position - hrp.Position)
-		local dist = toTarget.Magnitude
-
-		if dist > 1 then
-			local flickDir = toTarget.Unit
-			hrp.Velocity = flickDir * jumpPower
 			hrp.RotVelocity = v3_0
 		end
 	end
