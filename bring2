@@ -182,7 +182,7 @@ end
 
 -- Speed assist checkbox + speed +/-
 local speedRow=mk("Frame",{
-	Position=u2(0,0,1,-178),Size=u2(0,220,0,26),
+	Position=u2(0,0,1,-204),Size=u2(0,220,0,26),
 	BackgroundTransparency=1,BorderSizePixel=0,
 },content)
 local checkbox=mk("TextButton",{
@@ -202,7 +202,7 @@ mk("TextLabel",{
 
 -- Speed power row
 local speedPowerRow=mk("Frame",{
-	Position=u2(0,0,1,-150),Size=u2(0,220,0,18),
+	Position=u2(0,0,1,-176),Size=u2(0,220,0,18),
 	BackgroundTransparency=1,BorderSizePixel=0,
 },content)
 mk("TextLabel",{
@@ -787,37 +787,34 @@ task.spawn(function()
 		local hv = v3(vel.X, 0, vel.Z)
 		local horizSpeed = hv.Magnitude
 
-		-- only flick when target is actually moving
 		if horizSpeed < 1 then continue end
 
 		local now = osclock()
-		if now - lastSpeedFlickTime < 0.18 then continue end
-
-		local dir = hv.Unit
-		local footY = hrp1.Position.Y - hrp1.Size.Y/2
-
-		-- place us BEHIND the target (opposite to their movement direction)
-		-- far enough back that we never clip into them
-		local behindOffset = -dir * 6
-		local spawnPos = v3(
-			hrp1.Position.X + behindOffset.X,
-			footY - hrp.Size.Y/2 - 0.1,
-			hrp1.Position.Z + behindOffset.Z
-		)
-
-		-- only flick if we're not already close behind them
-		local myPos = hrp.Position
-		local distAhead = (v3(myPos.X,0,myPos.Z) - v3(hrp1.Position.X,0,hrp1.Position.Z)):Dot(dir)
-		-- distAhead < 0 means we're behind, > 0 means we're in front
-		-- only reposition if we're more than 4 studs behind OR ahead of them
-		if math.abs(distAhead) > 4 then
-			hrp.CFrame = cf(spawnPos)
+		if now - lastSpeedFlickTime > 0.25 then
 			lastSpeedFlickTime = now
-		end
 
-		-- flick velocity: match their horizontal speed so we keep up, zero Y so we don't fly up
-		hrp.Velocity = v3(vel.X, 0, vel.Z)
-		hrp.RotVelocity = v3_0
+			local dir = hv.Unit
+			local footY = hrp1.Position.Y - hrp1.Size.Y/2
+
+			-- place us behind the target
+			local behindOffset = -dir * 5
+			local spawnPos = v3(
+				hrp1.Position.X + behindOffset.X,
+				footY - hrp.Size.Y/2 - 0.1,
+				hrp1.Position.Z + behindOffset.Z
+			)
+
+			hrp.CFrame = cf(spawnPos)
+
+			-- flick forward in the direction they are walking, like jump assist
+			hrp.Velocity = v3(
+				dir.X * maxspeed,
+				0,
+				dir.Z * maxspeed
+			)
+
+			hrp.RotVelocity = v3_0
+		end
 	end
 end)
 
