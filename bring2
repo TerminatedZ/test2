@@ -766,9 +766,7 @@ task.spawn(function()
 end)
 
 
--- ── SPEED EXPERIMENTAL (flick from behind) ──
-local lastSpeedFlickTime = 0
-
+-- ── SPEED EXPERIMENTAL (horizontal flick) ──
 task.spawn(function()
 	while true do
 		twait()
@@ -789,32 +787,23 @@ task.spawn(function()
 
 		if horizSpeed < 1 then continue end
 
-		local now = osclock()
-		if now - lastSpeedFlickTime > 0.25 then
-			lastSpeedFlickTime = now
+		local dir = hv.Unit
+		local footY = hrp1.Position.Y - hrp1.Size.Y/2
 
-			local dir = hv.Unit
-			local footY = hrp1.Position.Y - hrp1.Size.Y/2
+		-- place us behind them once
+		local behindPos = v3(
+			hrp1.Position.X - dir.X * 5,
+			footY - hrp.Size.Y/2 - 0.1,
+			hrp1.Position.Z - dir.Z * 5
+		)
+		hrp.CFrame = cf(behindPos)
+		hrp.RotVelocity = v3_0
 
-			-- place us behind the target
-			local behindOffset = -dir * 5
-			local spawnPos = v3(
-				hrp1.Position.X + behindOffset.X,
-				footY - hrp.Size.Y/2 - 0.1,
-				hrp1.Position.Z + behindOffset.Z
-			)
+		-- flick forward hard like jump assist but horizontal
+		hrp.Velocity = v3(dir.X * jumpPower, 0, dir.Z * jumpPower)
 
-			hrp.CFrame = cf(spawnPos)
-
-			-- flick forward in the direction they are walking, like jump assist
-			hrp.Velocity = v3(
-				dir.X * maxspeed,
-				0,
-				dir.Z * maxspeed
-			)
-
-			hrp.RotVelocity = v3_0
-		end
+		-- wait for the flick to finish travelling before doing it again
+		twait(0.6)
 	end
 end)
 
