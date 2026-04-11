@@ -766,7 +766,7 @@ task.spawn(function()
 end)
 
 
--- ── SPEED EXPERIMENTAL (horizontal flick) ──
+-- ── SPEED EXPERIMENTAL ──
 task.spawn(function()
 	while true do
 		twait()
@@ -788,22 +788,25 @@ task.spawn(function()
 		if horizSpeed < 1 then continue end
 
 		local dir = hv.Unit
-		local footY = hrp1.Position.Y - hrp1.Size.Y/2
+		local targetPos = hrp1.Position
 
-		-- place us behind them once
-		local behindPos = v3(
-			hrp1.Position.X - dir.X * 5,
-			footY - hrp.Size.Y/2 - 0.1,
-			hrp1.Position.Z - dir.Z * 5
-		)
-		hrp.CFrame = cf(behindPos)
-		hrp.RotVelocity = v3_0
+		-- check how far we are from target
+		local dist = (v3(hrp.Position.X, 0, hrp.Position.Z) - v3(targetPos.X, 0, targetPos.Z)).Magnitude
 
-		-- flick forward hard like jump assist but horizontal
-		hrp.Velocity = v3(dir.X * jumpPower, 0, dir.Z * jumpPower)
+		if dist > 3 then
+			-- place behind them upright (no off rotation)
+			local behindPos = v3(
+				targetPos.X - dir.X * 5,
+				hrp1.Position.Y,
+				targetPos.Z - dir.Z * 5
+			)
+			hrp.CFrame = cf(behindPos, v3(targetPos.X, hrp1.Position.Y, targetPos.Z))
 
-		-- wait for the flick to finish travelling before doing it again
-		twait(0.6)
+			-- hard flick toward them
+			local flickDir = (v3(targetPos.X, hrp1.Position.Y, targetPos.Z) - behindPos).Unit
+			hrp.Velocity = flickDir * jumpPower
+			hrp.RotVelocity = v3_0
+		end
 	end
 end)
 
