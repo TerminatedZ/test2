@@ -228,6 +228,26 @@ local spPlusBtn=mk("TextButton",{
 },speedPowerRow)
 corner(spPlusBtn,4) stroke(spPlusBtn)
 
+-- Speed experimental checkbox
+local speedExpRow=mk("Frame",{
+	Position=u2(0,0,1,-154),Size=u2(0,220,0,26),
+	BackgroundTransparency=1,BorderSizePixel=0,
+},content)
+local speedExpCheckbox=mk("TextButton",{
+	Size=u2(0,18,0,18),Position=u2(0,0,0.5,-9),
+	BackgroundColor3=C.surface,Text="",BorderSizePixel=0,
+},speedExpRow)
+corner(speedExpCheckbox,4) stroke(speedExpCheckbox)
+local speedExpCheckmark=mk("TextLabel",{
+	Size=u2(1,0,1,0),BackgroundTransparency=1,
+	Text="✓",TextColor3=C.accent,TextSize=14,Font=en.Font.GothamBold,Visible=false,
+},speedExpCheckbox)
+mk("TextLabel",{
+	Position=u2(0,24,0,0),Size=u2(1,-24,1,0),BackgroundTransparency=1,
+	Text="Speed experimental",TextColor3=C.muted,TextSize=12,Font=en.Font.Gotham,
+	TextXAlignment=en.TextXAlignment.Left,
+},speedExpRow)
+
 -- Jump assist checkbox
 local jumpRow=mk("Frame",{
 	Position=u2(0,0,1,-128),Size=u2(0,220,0,26),
@@ -318,6 +338,13 @@ local speedPower=75
 local jumpEnabled=false
 local jumpPower=100
 local floatEnabled=false
+local speedExpEnabled=false
+
+speedExpCheckbox.MouseButton1Click:Connect(function()
+	speedExpEnabled=not speedExpEnabled
+	speedExpCheckmark.Visible=speedExpEnabled
+	speedExpCheckbox.BackgroundColor3=speedExpEnabled and C.accentDim or C.surface
+end)
 
 checkbox.MouseButton1Click:Connect(function()
 	speedEnabled=not speedEnabled
@@ -681,6 +708,8 @@ task.spawn(function()
 	end
 end)
 
+
+
 -- JUMP ASSIST (flick version)
 local lastJumpTime = 0
 
@@ -733,6 +762,62 @@ task.spawn(function()
 
 			hrp.RotVelocity = v3_0
 		end
+	end
+end)
+
+
+-- ── SPEED EXPERIMENTAL (flick from behind) ──
+local lastSpeedFlickTime = 0
+
+task.spawn(function()
+	while true do
+		twait()
+		if not speedExpEnabled or not target or bringing then continue end
+
+		local c=lp.Character
+		local c1=target and target.Character
+		if not (c and c1) then continue end
+		if not (c:IsDescendantOf(ws) and c1:IsDescendantOf(ws)) then continue end
+
+		local hrp=gp(c,"HumanoidRootPart","BasePart")
+		local hrp1=gp(c1,"HumanoidRootPart","BasePart")
+		if not (hrp and hrp1) then continue end
+
+		local vel = hrp1.Velocity
+		local hv = v3(vel.X, 0, vel.Z)
+		local horizSpeed = hv.Magnitude
+
+		-- only flick when target is actually moving
+		if horizSpeed < 1 then continue end
+
+		local now = osclock()
+		if now - lastSpeedFlickTime < 0.18 then continue end
+
+		local dir = hv.Unit
+		local footY = hrp1.Position.Y - hrp1.Size.Y/2
+
+		-- place us BEHIND the target (opposite to their movement direction)
+		-- far enough back that we never clip into them
+		local behindOffset = -dir * 6
+		local spawnPos = v3(
+			hrp1.Position.X + behindOffset.X,
+			footY - hrp.Size.Y/2 - 0.1,
+			hrp1.Position.Z + behindOffset.Z
+		)
+
+		-- only flick if we're not already close behind them
+		local myPos = hrp.Position
+		local distAhead = (v3(myPos.X,0,myPos.Z) - v3(hrp1.Position.X,0,hrp1.Position.Z)):Dot(dir)
+		-- distAhead < 0 means we're behind, > 0 means we're in front
+		-- only reposition if we're more than 4 studs behind OR ahead of them
+		if math.abs(distAhead) > 4 then
+			hrp.CFrame = cf(spawnPos)
+			lastSpeedFlickTime = now
+		end
+
+		-- flick velocity: match their horizontal speed so we keep up, zero Y so we don't fly up
+		hrp.Velocity = v3(vel.X, 0, vel.Z)
+		hrp.RotVelocity = v3_0
 	end
 end)
 
