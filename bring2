@@ -276,25 +276,25 @@ local plusBtn=mk("TextButton",{
 },powerRow)
 corner(plusBtn,4) stroke(plusBtn)
 
--- Float checkbox
-local floatRow=mk("Frame",{
+-- Fly checkbox
+local flyRow=mk("Frame",{
 	Position=u2(0,0,1,-78),Size=u2(0,220,0,26),
 	BackgroundTransparency=1,BorderSizePixel=0,
 },content)
-local floatCheckbox=mk("TextButton",{
+local flyCheckbox=mk("TextButton",{
 	Size=u2(0,18,0,18),Position=u2(0,0,0.5,-9),
 	BackgroundColor3=C.surface,Text="",BorderSizePixel=0,
-},floatRow)
-corner(floatCheckbox,4) stroke(floatCheckbox)
-local floatCheckmark=mk("TextLabel",{
+},flyRow)
+corner(flyCheckbox,4) stroke(flyCheckbox)
+local flyCheckmark=mk("TextLabel",{
 	Size=u2(1,0,1,0),BackgroundTransparency=1,
 	Text="✓",TextColor3=C.accent,TextSize=14,Font=en.Font.GothamBold,Visible=false,
-},floatCheckbox)
+},flyCheckbox)
 mk("TextLabel",{
 	Position=u2(0,24,0,0),Size=u2(1,-24,1,0),BackgroundTransparency=1,
-	Text="Float (stay under target)",TextColor3=C.muted,TextSize=12,Font=en.Font.Gotham,
+	Text="Fly (stay under target)",TextColor3=C.muted,TextSize=12,Font=en.Font.Gotham,
 	TextXAlignment=en.TextXAlignment.Left,
-},floatRow)
+},flyRow)
 
 -- Bring button
 local bringBtn=mk("TextButton",{
@@ -317,7 +317,7 @@ local speedEnabled=false
 local speedPower=75
 local jumpEnabled=false
 local jumpPower=100
-local floatEnabled=false
+local flyEnabled=false
 
 checkbox.MouseButton1Click:Connect(function()
 	speedEnabled=not speedEnabled
@@ -347,10 +347,10 @@ plusBtn.MouseButton1Click:Connect(function()
 	jumpPower=math.min(500,jumpPower+10)
 	powerLabel.Text=tostring(jumpPower)
 end)
-floatCheckbox.MouseButton1Click:Connect(function()
-	floatEnabled=not floatEnabled
-	floatCheckmark.Visible=floatEnabled
-	floatCheckbox.BackgroundColor3=floatEnabled and C.accentDim or C.surface
+flyCheckbox.MouseButton1Click:Connect(function()
+	flyEnabled=not flyEnabled
+	flyCheckmark.Visible=flyEnabled
+	flyCheckbox.BackgroundColor3=flyEnabled and C.accentDim or C.surface
 end)
 
 -- Draggable
@@ -724,7 +724,7 @@ task.spawn(function()
 
 			hrp.CFrame = cf(basePos)
 
-			-- 🔥 THE FLICK
+			-- THE FLICK
 			hrp.Velocity = v3(
 				vel.X,
 				jumpPower,
@@ -736,64 +736,81 @@ task.spawn(function()
 	end
 end)
 
--- ── FLOAT (fixed) ──
--- Lies flat (off rotation) positioned so our FEET are just below the target's feet.
--- Properly checks floatEnabled every frame so toggling off stops it immediately.
--- Yields while jump assist is active to avoid fighting it.
+-- ── FLY ──
+-- Positions us flat (off rotation) just below the target's feet.
+-- Uses speed-scaled prediction so at high speeds we lead the turn
+-- far enough ahead to never fall off when the target changes direction.
+-- The facing direction is also smoothly steered via a slerp-style
+-- blend between the previous look and the new predicted look,
+-- with the blend rate inversely scaled by speed so fast turns are gradual.
+
 task.spawn(function()
+	-- Persistent smoothed look direction (horiz unit vector)
+	local smoothLook = v3(1, 0, 0)
+
 	while true do
 		twait()
-		-- FIX: check floatEnabled FIRST every frame so disabling stops it immediately
-		if not floatEnabled then continue end
+		if not flyEnabled then
+			-- Reset smoothed look when disabled so re-enabling starts fresh
+			smoothLook = v3(1, 0, 0)
+			continue
+		end
 		if not target or bringing then continue end
+		if jumpActive then continue end -- yield to jump assist
 
-		-- Let jump assist own the frame during a jump
-		if jumpActive then continue end
-
-		local c=lp.Character
-		local c1=target and target.Character
+		local c  = lp.Character
+		local c1 = target and target.Character
 		if not (c and c1) then continue end
 		if not (c:IsDescendantOf(ws) and c1:IsDescendantOf(ws)) then continue end
-		local hrp=gp(c,"HumanoidRootPart","BasePart")
-		local hrp1=gp(c1,"HumanoidRootPart","BasePart")
+
+		local hrp  = gp(c,  "HumanoidRootPart", "BasePart")
+		local hrp1 = gp(c1, "HumanoidRootPart", "BasePart")
 		if not (hrp and hrp1) then continue end
 
-		-- FIX: position based on FEET not torso center.
-		-- Target's feet = hrp1.Position.Y - hrp1.Size.Y/2
-		-- Our feet (lying flat, our HRP is our center) should land just below their feet,
-		-- so our HRP Y = their feetY - our HRP half-height (Size.Y/2) - small gap
-		local targetFeetY = hrp1.Position.Y - hrp1.Size.Y/2
-		local ourHalfH = hrp.Size.Y/2
-		local snapY = targetFeetY - ourHalfH - 0.05
+		-- ── Vertical snap ──
+		local targetFeetY = hrp1.Position.Y - hrp1.Size.Y / 2
+		local ourHalfH    = hrp.Size.Y / 2
+		local snapY       = targetFeetY - ourHalfH - 0.05
 
-		-- Look direction for the lying-flat CFrame
-		local hv=v3(hrp1.Velocity.X,0,hrp1.Velocity.Z)
-		local lookTarget
-		if hv.Magnitude>0.1 then
-			lookTarget=v3(hrp1.Position.X,snapY,hrp1.Position.Z)+hv.Unit*10
-		else
-			lookTarget=v3(hrp1.Position.X+1,snapY,hrp1.Position.Z)
+		-- ── Speed-scaled prediction ──
+		-- At low speed predict very little (avoid overshooting corners).
+		-- At high speed predict more so we stay under the target through fast turns.
+		local vel3  = hrp1.Velocity
+		local speed = vel3.Magnitude
+		-- predictTime grows with speed but is capped so we don't overshoot massively.
+		local predictTime = math.clamp(speed / 80, 0.05, 0.35)
+		local predicted   = hrp1.Position + vel3 * predictTime
+		local flatPos     = v3(predicted.X, snapY, predicted.Z)
+
+		-- ── Smooth turning ──
+		-- Desired look is the current horiz velocity direction.
+		-- We slerp smoothLook toward it with a rate that slows down as speed rises,
+		-- so fast-moving targets produce gradual, stable heading changes.
+		local horizVel = v3(vel3.X, 0, vel3.Z)
+		local horizMag = horizVel.Magnitude
+
+		if horizMag > 0.1 then
+			local desiredLook = horizVel / horizMag
+
+			-- turnRate: at low speed turns are snappy; at high speed turns are slow
+			-- (prevents the sudden yaw flip that caused falling-off)
+			local turnRate = math.clamp(6 - speed * 0.07, 0.8, 6)
+
+			-- Linear interpolate the XZ look vector then renormalise
+			local blended = smoothLook + (desiredLook - smoothLook) * math.min(turnRate * 0.05, 1)
+			local blendedMag = v3(blended.X, 0, blended.Z).Magnitude
+			if blendedMag > 0.001 then
+				smoothLook = v3(blended.X, 0, blended.Z) / blendedMag
+			end
 		end
+		-- else: standing still → keep previous smoothLook so we don't snap
 
-		-- Predict future position so we float smoothly
-		local speed = hrp1.Velocity.Magnitude
-		local predictTime = math.clamp(speed / 60, 0.12, 0.45)
-		local predicted = hrp1.Position + hrp1.Velocity * predictTime
-		
-		-- Keep lying flat using the SAME rotation ("off")
-		local flatPos = v3(predicted.X, snapY, predicted.Z)
-		
-		-- Make the facing direction also predictive
-		local predictedLook = flatPos + (
-		    hrp1.Velocity.Magnitude > 0.1 
-		    and hrp1.Velocity.Unit * 10 
-		    or v3(1,0,0)
-		)
-		
-		hrp.CFrame = cf(flatPos, predictedLook) * off
-		
-		-- Inherit target velocity so we don't fall behind
-		hrp.Velocity = hrp1.Velocity
+		-- Build look-at target from smoothed direction
+		local lookTarget = flatPos + smoothLook * 10
+
+		-- ── Apply ──
+		hrp.CFrame      = cf(flatPos, lookTarget) * off
+		hrp.Velocity    = vel3          -- inherit full velocity (including Y) so we track jumps
 		hrp.RotVelocity = v3_0
 	end
 end)
