@@ -781,29 +781,12 @@ task.spawn(function()
 		local hrp1=gp(c1,"HumanoidRootPart","BasePart")
 		if not (hrp and hrp1) then continue end
 
-		local vel = hrp1.Velocity
-		local hv = v3(vel.X, 0, vel.Z)
-		local horizSpeed = hv.Magnitude
+		-- just point and flick toward target, no teleport ever
+		local toTarget = (hrp1.Position - hrp.Position)
+		local dist = toTarget.Magnitude
 
-		if horizSpeed < 1 then continue end
-
-		local dir = hv.Unit
-		local targetPos = hrp1.Position
-
-		-- check how far we are from target
-		local dist = (v3(hrp.Position.X, 0, hrp.Position.Z) - v3(targetPos.X, 0, targetPos.Z)).Magnitude
-
-		if dist > 3 then
-			-- place behind them upright (no off rotation)
-			local behindPos = v3(
-				targetPos.X - dir.X * 5,
-				hrp1.Position.Y,
-				targetPos.Z - dir.Z * 5
-			)
-			hrp.CFrame = cf(behindPos, v3(targetPos.X, hrp1.Position.Y, targetPos.Z))
-
-			-- hard flick toward them
-			local flickDir = (v3(targetPos.X, hrp1.Position.Y, targetPos.Z) - behindPos).Unit
+		if dist > 1 then
+			local flickDir = toTarget.Unit
 			hrp.Velocity = flickDir * jumpPower
 			hrp.RotVelocity = v3_0
 		end
